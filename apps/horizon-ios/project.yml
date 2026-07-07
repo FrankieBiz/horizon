@@ -1,0 +1,51 @@
+# XcodeGen spec — generate the Xcode project with:
+#   brew install xcodegen && cd apps/horizon-ios && xcodegen
+# (The .xcodeproj is generated, not committed.)
+name: Horizon
+options:
+  bundleIdPrefix: com.frankbisignano
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  HorizonKit:
+    path: Packages/HorizonKit
+
+targets:
+  Horizon:
+    type: application
+    platform: iOS
+    sources:
+      - Horizon
+    dependencies:
+      - package: HorizonKit
+    entitlements:
+      path: Horizon/Resources/Horizon.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
+        com.apple.developer.applesignin: [Default]
+        aps-environment: development
+    info:
+      path: Horizon/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Horizon
+        UILaunchScreen: {}
+        NSHealthShareUsageDescription: >-
+          Horizon reads your sleep, heart rate, heart-rate variability,
+          respiratory rate, steps, active energy, workouts, and nutrition from
+          Apple Health to write your weekly coaching review. Data is used only
+          for your own coaching — never for advertising, and never sold.
+        NSHealthUpdateUsageDescription: >-
+          Horizon does not write to Apple Health today; this permission is
+          reserved for optionally saving your manual logs back to Health in a
+          future update.
+        UIBackgroundModes: [remote-notification]
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        # Set your Apple Developer team before device builds:
+        # DEVELOPMENT_TEAM: XXXXXXXXXX
