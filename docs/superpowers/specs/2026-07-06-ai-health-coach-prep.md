@@ -382,9 +382,13 @@ No temperature parameter (removed on current models); adaptive thinking on.
 
 Two-stage: **deterministic findings → LLM synthesis** (Claude never computes, code never writes prose).
 
-Stage 1 (code) emits typed findings like:
+Stage 1 (code) emits typed findings. Thresholds below are **pinned as v1
+(2026-07-07, Stage 0)** — implement these values; tune only against real backfilled
+data in Stage 4, recording changes as v2+ in this table. Shared constants: personal
+baselines use 7-day vs 60-day windows, deviation = 1 SD, minimum 4/7 days of domain
+data for any finding to fire (else `logging_gap`), default `sleep_need_min` 450.
 
-| Finding (example thresholds — tune in Phase 4) | Signal | Behavior-focused output shape |
+| Finding (thresholds v1 — tune in Stage 4) | Signal | Behavior-focused output shape |
 |---|---|---|
 | `sleep_consistency_low` | bedtime SD > 60 min across 7d | "Anchor your bedtime: 11pm five nights this week" |
 | `recovery_suppressed_load_high` | HRV 7d > 1 SD below 60d baseline + acute:chronic load > 1.3 | "Swap one hard session for a walk; recheck next week" |
