@@ -1,0 +1,5 @@
+packages:
+  - apps/horizon-api
+  - packages/horizon-shared
+allowBuilds:
+  esbuild: true

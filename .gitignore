@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+.DS_Store
+
+# Xcode / SwiftPM (project is generated via xcodegen)
+*.xcodeproj
+*.xcworkspace
+.build/
+DerivedData/
