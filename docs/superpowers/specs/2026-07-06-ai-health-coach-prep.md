@@ -63,7 +63,9 @@ human coach would give you, for the cost of a few API calls.
 4. Safety filter validates the language (no diagnosis, correct biomarker phrasing).
 5. Stored in Postgres; push notification fires ("Your weekly review is ready" — no
    health data in the push payload); app renders the coaching message.
-6. User reads it in ~2 minutes, picks the top change for the week.
+6. Opening the review first shows an optional 3-tap check-in (energy / soreness /
+   sleep quality, 1–5) — skippable, feeds next week's WeeklyData as subjective signal.
+7. User reads it in ~2 minutes, picks the top change for the week.
 
 **Occasionally:** After a blood draw, user types results into the biomarker form (with
 the lab's own reference ranges). Next weekly review includes trend commentary phrased
@@ -225,6 +227,12 @@ biomarker_results(id, panel_id, marker, value, unit,
                   -- Differentiator: no major competitor stores the lab's printed
                   -- range (all overlay proprietary bands); FHIR-aligned design.
 
+-- Weekly subjective check-in (optional, 3 taps when the review arrives; compressed
+-- Hooper Index — weekly subjective signal is evidence-supported at coaching cadence
+-- (Saw 2016 BJSM; Drole 2025), daily check-ins are deliberately NOT in MVP)
+weekly_checkins(user_id, week_start, energy, soreness, sleep_quality,  -- 1-5 scales
+                created_at, UNIQUE(user_id, week_start))
+
 -- Weekly engine output
 weekly_summaries(id, user_id, week_start,
                  metrics_json,    -- the assembled WeeklyData input (auditability)
@@ -267,7 +275,8 @@ No temperature parameter (removed on current models); adaptive thinking on.
    - *Purpose:* produce the complete WeeklySummary from one week of data.
    - *Inputs:* `WeeklyData` JSON — per-domain 7-day series, 60-day baselines,
      deterministic findings[] from the rules engine, user profile/goals, last week's
-     summary + recommendations (for continuity and non-repetition).
+     summary + recommendations (for continuity and non-repetition), and last week's
+     subjective check-in (energy/soreness/sleep quality) when present.
    - *Output:* `WeeklySummary` JSON: `{domain_analyses{}, wins[], focus_areas[],
      coach_message, recommendations[≤3]}`. The `recommendations` and `coach_message`
      fields are produced by the recommendation-generation section (skill 7) — it is
@@ -517,12 +526,12 @@ someone from seeking care ("your HRV is fine" is not a health clearance).
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| **0. Decisions & architecture** | Resolve §11 open questions; freeze MVP scope; pin thresholds table v1; write privacy policy draft | This doc's open questions answered; spec re-reviewed |
+| **0. Decisions & architecture** | Resolve §11 open questions; freeze MVP scope; pin thresholds table v1; write privacy policy draft | **Mostly complete 2026-07-07:** all §11 questions decided (research-backed), spec reviewed twice. Remaining: privacy policy draft, thresholds v1 sign-off |
 | **1. Data connectors** | iOS project scaffold; HealthKit permission flow + anchored-query sync for sleep/vitals/activity/workouts/nutrition; manual entry screens (nutrition totals, habits, biomarkers); local SwiftData store | Real device shows 7 days of correct daily aggregates from the user's actual wearable + food app; manual entries persist |
 | **2. Schema & storage** | Supabase project; migrations 001-00N (§5) with RLS; horizon-api scaffold (Express 5 + zod + pg); per-domain ingestion upsert endpoints; iOS sync engine (local-first, reconcile); deletion + export endpoints. Dev-time: Supabase MCP wired into Claude Code once the schema exists | Data flows device → Postgres idempotently; re-sync produces no duplicates; delete/export work; vitest green |
 | **3. Claude skill definitions** | Write all 8 skill prompts + zod schemas (biomarker-review written but dormant until real panels exist — activation is a Phase 4 decision); WeeklyData assembler; golden-file tests (fixed WeeklyData fixtures → assert structure, phrasing rules, banned-phrase absence) | Skills produce valid WeeklySummary JSON on 5+ fixture weeks incl. sparse/edge weeks; deny-list scan has unit tests |
 | **4. Weekly analysis workflow** | Rules engine (baselines, flags) as pure TS module + tests; orchestrator run.ts; coach_runs logging; cron job + manual trigger; tune thresholds against the user's own real backfilled data | End-to-end run against real data produces a sane review; rerun is idempotent; cost/tokens logged; ~$0.10/run confirmed |
-| **5. Mobile UI** | Weekly Review screen; dashboard (this week vs baseline); biomarker entry/history; onboarding (account creation via Supabase Auth + Sign in with Apple, consent, HealthKit permissions, goals); empty/sparse states | Full flow usable on device by a non-developer; empty states everywhere; onboarding < 3 min |
+| **5. Mobile UI** | Weekly Review screen (with the optional 3-tap check-in on open); dashboard (this week vs baseline); biomarker entry/history; onboarding (account creation via Supabase Auth + Sign in with Apple, consent, HealthKit permissions, goals); empty/sparse states | Full flow usable on device by a non-developer; empty states everywhere; onboarding < 3 min |
 | **6. Messaging & polish** | APNs push (content-free payload); review-ready deep link; recommendation status (read/acted); copy polish; app icon/branding | Push arrives Monday; tap → review; weekly loop feels like a product |
 | **7. Safety review & testing** | Adversarial testing of the filter (seeded bad outputs); red-flag path tests; privacy checklist audit (§8); /ship gate (typecheck + full suites); security-reviewer + adversarial-verifier agents over the diff; TestFlight build | Filter catches seeded violations; checklist fully checked; suites green; running on the user's phone for a real week |
 
@@ -530,7 +539,28 @@ Each phase ends with the tree in a verified, committed state (async work discipl
 
 ---
 
-## 11. Open questions / decisions needed before coding
+## 11. Decisions (resolved 2026-07-07)
+
+All eleven questions were resolved on 2026-07-07 — with fresh research where it could
+change the answer (food-app HealthKit write-through re-verified; daily-vs-weekly
+subjective monitoring literature reviewed). Summary table first; the numbered items
+below retain the original question + rationale.
+
+| # | Decision |
+|---|---|
+| 1 | Multi-user **schema** (RLS from migration 001), single-user **operations**; compliance polish deferred until a second user exists |
+| 2 | Longevity score **dropped from MVP**; weekly review's wins/focus-areas replaces it |
+| 3 | Don't depend on any specific food app: HealthKit-read + mandatory manual fallback. If adopting one: **Cronometer (free) or MacroFactor**; MFP free likely works; avoid Lose It!/Noom (no macro write-through). Phase 1 exit criteria verify the actual app in use |
+| 4 | Bloodwork: **schema + manual entry form in MVP**; biomarker-review skill written in Phase 3 but dormant until real panels exist |
+| 5 | Week = **Monday, user-local**; cron fires ~7am ET (single-user); per-timezone fan-out later |
+| 6 | **No daily check-in.** Optional **3-tap weekly check-in** (energy/soreness/sleep quality, 1–5) shown when the review opens — subjective signal is evidence-supported at weekly cadence (Saw 2016 BJSM; Drole 2025), and weekly alignment makes friction ~zero |
+| 7 | Delivery: **push + in-app only**; email later |
+| 8 | Habits: **keep the full schema** (already designed), build only the minimal logging UI |
+| 9 | Claude spend approved: `claude-opus-4-8`, ~$0.09/user/week (~$0.40/month) — no reason to economize; Batch API at ~50+ users |
+| 10 | **Stay behavior-focused** — no biological-age estimate; revisit only with recurring lab data |
+| 11 | `recovery_daily` **computed transiently** in the weekly job; persist only if a daily readiness view ever ships |
+
+Original questions + rationale:
 
 1. **Single-user or multi-user?** Is this for you personally (TestFlight, one user) or
    built to ship to others? *Recommendation:* multi-user schema (user_id + RLS is nearly
@@ -541,17 +571,28 @@ Each phase ends with the tree in a verified, committed state (async work discipl
    the weekly review's "wins/focus areas" covers the need. Revisit as a
    contributors-style breakdown later (research: opaque single scores are the
    most-criticized pattern anyway).
-3. **Which food app do you actually use?** Determines whether HealthKit nutrition
-   write-through works day one (MacroFactor: confirmed; MFP free tier: verify) or
-   whether manual entry is your primary path.
+3. **Which food app feeds nutrition?** Resolved by making the architecture
+   app-agnostic: HealthKit read + mandatory manual fallback works regardless.
+   Verification research (2026-07-07): Cronometer free tier and MacroFactor both
+   write full macros to Apple Health; MFP free tier likely still does (the 2022
+   change gated other features, not the outbound write); Lose It! writes calories
+   only and Noom doesn't write food data — avoid both for this purpose. All rated
+   LIKELY not CONFIRMED (support pages blocked automated fetch) — the Phase 1 exit
+   criterion (7 real days of correct aggregates on device) is the definitive check.
 4. **Bloodwork in MVP at all?** It's marked optional. *Recommendation:* include the
    manual-entry tables + form (cheap), ship biomarker-review skill in Phase 4 only if
    you have real panels to test with.
 5. **Week boundary:** Monday morning user-local? (Affects cron + "week_start" semantics.)
    *Recommendation:* Monday, computed in user timezone, cron fires ~7am ET.
-6. **Subjective daily check-in** (energy/mood/soreness, 10 seconds/day) — adds real
-   coaching signal but also daily friction. *Recommendation:* defer to post-MVP; the
-   habit logger can absorb it later.
+6. **Subjective check-in** — research (2026-07-07) resolved this with a nuance: the
+   well-known "subjective beats objective" finding (Saw et al. 2016, BJSM, 56 studies)
+   comes from *daily* elite-athlete monitoring, and later work (Duignan 2020) shows
+   single-item daily measures are inconsistent — so a daily check-in isn't justified
+   for a weekly coaching loop. But Drole et al. 2025 found *weekly* self-report still
+   tracks physiological load markers. Decision: no daily check-in; an optional 3-tap
+   weekly check-in (energy/soreness/sleep quality — compressed Hooper Index) when the
+   review opens, feeding next week's WeeklyData. Daily version stays a testable
+   post-MVP hypothesis.
 7. **Delivery channel:** push + in-app only for MVP? *Recommendation:* yes; email later.
 8. **Habits scope:** keep the full habit/supplement tracker from the original spec, or
    slim to a fixed checklist for MVP? *Recommendation:* keep the schema (already
