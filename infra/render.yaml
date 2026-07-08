@@ -37,6 +37,10 @@ envVarGroups:
       - key: APNS_ENV
         value: development
 
+# NOTE: horizon-weekly runs as a scheduled GitHub Actions workflow that POSTs
+# to /internal/coach/run with header x-cron-secret, since Render Cron Jobs
+# have no free tier (web services do). See .github/workflows/weekly-coach.yml
+
 services:
   - type: web
     name: horizon-api
@@ -46,16 +50,5 @@ services:
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter horizon-api build
     startCommand: node apps/horizon-api/dist/index.js
     healthCheckPath: /health
-    envVars:
-      - fromGroup: horizon-shared
-
-  - type: cron
-    name: horizon-weekly
-    runtime: node
-    plan: free
-    rootDir: .
-    schedule: "0 12 * * 1" # Monday 12:00 UTC ≈ 7-8am US-East
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter horizon-api build
-    startCommand: node apps/horizon-api/dist/jobs/weekly.js
     envVars:
       - fromGroup: horizon-shared
