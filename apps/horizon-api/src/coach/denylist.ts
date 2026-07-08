@@ -16,11 +16,11 @@ const RULES: Array<{ rule: string; pattern: RegExp }> = [
   { rule: "treatment_advice", pattern: /\btreat(?:s|ed|ing|ment|ments)?\b/i },
   { rule: "prescription", pattern: /\bprescri(?:be|bes|bed|bing|ption|ptions)\b/i },
   { rule: "you_have_condition", pattern: new RegExp(`\\byou (?:have|may have|might have|likely have|are developing)\\b[^.!?]{0,60}${CONDITIONS}`, "i") },
-  { rule: "indicates_condition", pattern: new RegExp(`\\b(?:indicat\\w+|suggest\\w+|is a sign of|points? to)\\b[^.!?]{0,60}${CONDITIONS}`, "i") },
+  { rule: "indicates_condition", pattern: new RegExp(`\\b(?:indicat\\w*|suggest\\w*|is a sign of|points? to)\\b[^.!?]{0,60}${CONDITIONS}`, "i") },
   { rule: "condition_risk_claim", pattern: new RegExp(`\\b(?:risk|chance|likelihood) of\\b[^.!?]{0,40}${CONDITIONS}`, "i") },
   { rule: "medication_advice", pattern: /\b(?:start|stop|increase|decrease|adjust|taper|double|halve|skip)\b[^.!?]{0,40}\b(?:medication|meds|dose|dosage|statin|metformin|insulin)\b/i },
   { rule: "dosage_advice", pattern: /\b(?:mg|mcg|iu)\b[^.!?]{0,30}\b(?:instead|rather than|increase to|reduce to|up to)\b/i },
-  { rule: "judgment_on_labs", pattern: /\b(?:dangerous|alarming|worrying|abnormal)\b[^.!?]{0,50}\b(?:level|value|result|marker|lab)\b/i },
+  { rule: "judgment_on_labs", pattern: /\b(?:dangerous|alarming|worrying|abnormal)\b[^.!?]{0,50}\b(?:level|value|result|marker|lab)\b|\b(?:level|value|result|marker|lab)s?\b[^.!?]{0,50}\b(?:dangerous|alarming|worrying|abnormal)\b/i },
   { rule: "medical_substitute_claim", pattern: /\b(?:no need to see|instead of seeing|replaces?|skip)\b[^.!?]{0,30}\b(?:doctor|physician|medical)\b/i },
 ];
 
