@@ -28,6 +28,16 @@ export async function exportAccount(db: Queryable, userId: string): Promise<Reco
   const habitChildren = await db.query(
     `select hl.* from habit_logs hl where hl.user_id = $1`, [userId]);
   dump["habit_logs"] = habitChildren.rows;
+  const schedules = await db.query(
+    `select s.* from habit_schedules s
+       join habits h on h.id = s.habit_id
+      where h.user_id = $1`, [userId]);
+  dump["habit_schedules"] = schedules.rows;
+  const supplements = await db.query(
+    `select sd.* from supplement_details sd
+       join habits h on h.id = sd.habit_id
+      where h.user_id = $1`, [userId]);
+  dump["supplement_details"] = supplements.rows;
   const results = await db.query(
     `select r.* from biomarker_results r
        join biomarker_panels p on p.id = r.panel_id

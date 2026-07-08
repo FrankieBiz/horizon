@@ -1,0 +1,50 @@
+# Render Blueprint: web API + Monday-morning weekly coach job.
+services:
+  - type: web
+    name: horizon-api
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter horizon-api build
+    startCommand: node apps/horizon-api/dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: APNS_KEY_ID
+        sync: false
+      - key: APNS_TEAM_ID
+        sync: false
+      - key: APNS_KEY_P8
+        sync: false
+      - key: APNS_ENV
+        value: development
+
+  - type: cron
+    name: horizon-weekly
+    runtime: node
+    plan: starter
+    rootDir: .
+    schedule: "0 12 * * 1" # Monday 12:00 UTC ≈ 7-8am US-East
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter horizon-api build
+    startCommand: node apps/horizon-api/dist/jobs/weekly.js
+    envVars:
+      - fromService:
+          type: web
+          name: horizon-api
+          envVarKeys:
+            [NODE_ENV, DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+             SUPABASE_JWT_SECRET, ANTHROPIC_API_KEY, CRON_SECRET,
+             APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY_P8, APNS_ENV]

@@ -30,7 +30,8 @@ function baseRows(): WeekRows {
     historySleep: Array.from({ length: 60 }, () => ({ local_date: "h", total_min: 445 })),
     historyActivity: Array.from({ length: 28 }, () => ({ local_date: "h", steps: 9200 })),
     historyWorkouts: Array.from({ length: 8 }, (_, i) => ({
-      start_at: `2026-06-${(i % 28) + 1}T22:00:00Z`, duration_min: 50, avg_hr: 130,
+      start_at: `2026-06-${String(i * 3 + 1).padStart(2, "0")}T22:00:00Z`,
+      duration_min: 50, avg_hr: 130,
     })),
     weeksSinceLastWorkout: 0,
   };
@@ -199,6 +200,27 @@ describe("findings v1 thresholds", () => {
     const f = findings.find((x) => x.code === "habit_adherence_slipping");
     expect(f).toBeDefined();
     expect(f!.evidence).toContain("Vitamin D: 43% this week vs 90%");
+  });
+
+  it("no load-spike fabrication for users with shallow workout history", () => {
+    // Review finding: a fixed /4 divisor turned 5 days of history into a
+    // phantom 4.0 acute:chronic ratio. Shallow history → chronic null → no
+    // load findings at all.
+    const rows = baseRows();
+    rows.historyWorkouts = [
+      { start_at: "2026-06-26T22:00:00Z", duration_min: 60, avg_hr: 130 },
+      { start_at: "2026-06-27T22:00:00Z", duration_min: 60, avg_hr: 130 },
+    ]; // only 3 days before weekStart
+    rows.workouts = [
+      { start_at: "2026-06-29T22:00:00Z", duration_min: 90, avg_hr: 160 },
+      { start_at: "2026-07-01T22:00:00Z", duration_min: 90, avg_hr: 160 },
+      { start_at: "2026-07-03T22:00:00Z", duration_min: 90, avg_hr: 160 },
+    ];
+    const baselines = computeBaselines(rows);
+    expect(baselines.chronic_load_28d).toBeNull();
+    const codes = computeFindings(rows, baselines).map((f) => f.code);
+    expect(codes).not.toContain("training_load_spike");
+    expect(codes).not.toContain("recovery_suppressed_load_high");
   });
 
   it("thresholds v1 are the pinned spec values", () => {

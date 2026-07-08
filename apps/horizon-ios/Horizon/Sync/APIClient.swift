@@ -26,10 +26,28 @@ final class APIClient: Sendable {
         return e
     }()
 
+    private static let isoWithFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoPlain = ISO8601DateFormatter()
+
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
-        d.dateDecodingStrategy = .iso8601
+        // The API emits fractional-second ISO-8601 (JS toISOString); Foundation's
+        // .iso8601 strategy rejects fractions — accept both forms.
+        d.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            if let date = APIClient.isoWithFraction.date(from: string)
+                ?? APIClient.isoPlain.date(from: string) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container, debugDescription: "unrecognized ISO-8601 date: \(string)")
+        }
         return d
     }()
 

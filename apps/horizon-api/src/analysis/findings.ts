@@ -58,8 +58,17 @@ export function computeBaselines(rows: WeekRows): Baselines {
   const acute = rows.workouts.reduce((acc, w) => acc + sessionLoad(w.duration_min, w.avg_hr), 0);
   const chronicWindow = rows.historyWorkouts.reduce(
     (acc, w) => acc + sessionLoad(w.duration_min, w.avg_hr), 0);
-  // chronic = mean weekly load over the 4 history weeks (28d window supplied).
-  const chronic = rows.historyWorkouts.length > 0 ? chronicWindow / 4 : null;
+  // chronic = mean weekly load over the 28d window — but only when the history
+  // actually spans most of it. Dividing a few days of workouts by 4 fabricates
+  // a "spike" for new users (review finding): require >= 21 days of depth.
+  const weekStartMs = new Date(`${rows.weekStart}T00:00:00Z`).getTime();
+  const earliestHistMs = rows.historyWorkouts.length > 0
+    ? Math.min(...rows.historyWorkouts.map((w) => new Date(w.start_at).getTime()))
+    : null;
+  const histSpanDays = earliestHistMs != null ? (weekStartMs - earliestHistMs) / 86400e3 : 0;
+  const chronic = rows.historyWorkouts.length > 0 && histSpanDays >= 21
+    ? chronicWindow / 4
+    : null;
 
   return {
     hrv_60d_mean: mean(hrvHist),

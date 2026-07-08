@@ -13,6 +13,36 @@ function day(d: unknown): string {
   return d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
 }
 
+function addDays(localDate: string, n: number): string {
+  const [y, m, d] = localDate.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + n)).toISOString().slice(0, 10);
+}
+
+/** UTC instant of local midnight for a LocalDate in a timezone (DST-safe,
+ * two-pass). Workouts are stored as instants, so their week windows must be
+ * built from the user's local boundaries, not UTC date casts (review finding). */
+export function zonedMidnightUtc(localDate: string, timeZone: string): Date {
+  const [y, m, d] = localDate.split("-").map(Number);
+  const desired = Date.UTC(y!, m! - 1, d!); // target wall-clock, read as UTC
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  // instant = desired - offset(instant); iterate once more for DST edges.
+  let instant = desired;
+  for (let i = 0; i < 2; i++) {
+    const parts = fmt.formatToParts(new Date(instant));
+    const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+    const wallAsUtc = Date.UTC(get("year"), get("month") - 1, get("day"),
+                               get("hour") % 24, get("minute"), get("second"));
+    const offset = wallAsUtc - instant;
+    const next = desired - offset;
+    if (next === instant) break;
+    instant = next;
+  }
+  return new Date(instant);
+}
+
 export async function assembleWeeklyData(
   db: Queryable, userId: string, weekStart: string
 ): Promise<WeeklyData> {
@@ -21,8 +51,15 @@ export async function assembleWeeklyData(
   const profile = profileRes.rows[0] ?? { timezone: "America/New_York", goals_json: {} };
   const goals = profile.goals_json ?? {};
 
+  const tz = profile.timezone ?? "America/New_York";
+  // 60-day history window — must be >= the baseline-ready gate in findings.ts
+  // (review finding: a 56-day window made the recovery pathway unreachable).
   const weekEnd = `(($2::date) + interval '6 days')::date`;
-  const histStart = `(($2::date) - interval '56 days')::date`;
+  const histStart = `(($2::date) - interval '60 days')::date`;
+  // Workout tables store instants; window them by the user's LOCAL week.
+  const weekStartInstant = zonedMidnightUtc(weekStart, tz).toISOString();
+  const weekEndInstant = zonedMidnightUtc(addDays(weekStart, 7), tz).toISOString();
+  const chronicStartInstant = zonedMidnightUtc(addDays(weekStart, -28), tz).toISOString();
 
   const [sleep, vitals, activity, nutrition, body, workouts] = await Promise.all([
     db.query(`select * from sleep_daily where user_id = $1 and local_date between $2::date and ${weekEnd} order by local_date`, [userId, weekStart]),
@@ -30,15 +67,18 @@ export async function assembleWeeklyData(
     db.query(`select * from activity_daily where user_id = $1 and local_date between $2::date and ${weekEnd} order by local_date`, [userId, weekStart]),
     db.query(`select * from nutrition_daily where user_id = $1 and local_date between $2::date and ${weekEnd} order by local_date`, [userId, weekStart]),
     db.query(`select * from body_metrics where user_id = $1 and local_date between $2::date and ${weekEnd} order by local_date`, [userId, weekStart]),
-    db.query(`select * from workouts where user_id = $1 and start_at >= $2::date and start_at < ($2::date + interval '7 days') order by start_at`, [userId, weekStart]),
+    db.query(`select * from workouts where user_id = $1 and start_at >= $2::timestamptz and start_at < $3::timestamptz order by start_at`, [userId, weekStartInstant, weekEndInstant]),
   ]);
 
-  const [histVitals, histSleep, histActivity, histWorkouts, lastWorkout] = await Promise.all([
+  const [histVitals, histSleep, histActivity, histWorkouts, lastWorkout, weekTimezones] = await Promise.all([
     db.query(`select local_date, resting_hr, hrv_sdnn_ms from vitals_daily where user_id = $1 and local_date >= ${histStart} and local_date < $2::date order by local_date`, [userId, weekStart]),
     db.query(`select local_date, total_min from sleep_daily where user_id = $1 and local_date >= ${histStart} and local_date < $2::date order by local_date`, [userId, weekStart]),
     db.query(`select local_date, steps from activity_daily where user_id = $1 and local_date >= ${histStart} and local_date < $2::date order by local_date`, [userId, weekStart]),
-    db.query(`select start_at, duration_min, avg_hr from workouts where user_id = $1 and start_at >= ($2::date - interval '28 days') and start_at < $2::date order by start_at`, [userId, weekStart]),
-    db.query(`select max(start_at) as last from workouts where user_id = $1 and start_at < ($2::date + interval '7 days')`, [userId, weekStart]),
+    db.query(`select start_at, duration_min, avg_hr from workouts where user_id = $1 and start_at >= $2::timestamptz and start_at < $3::timestamptz order by start_at`, [userId, chronicStartInstant, weekStartInstant]),
+    db.query(`select max(start_at) as last from workouts where user_id = $1 and start_at < $2::timestamptz`, [userId, weekEndInstant]),
+    // Travel detection: habit logs record the device timezone at write time —
+    // the one per-day tz signal the schema has (review finding: was hardcoded).
+    db.query(`select distinct timezone from habit_logs where user_id = $1 and local_date between $2::date and ${weekEnd}`, [userId, weekStart]),
   ]);
 
   // ---- Habits: due/done this week + 30d adherence ----
@@ -171,7 +211,10 @@ export async function assembleWeeklyData(
       start_at: iso(r.start_at), duration_min: Number(r.duration_min), avg_hr: r.avg_hr,
     })),
     habits,
-    timezones: [...new Set([profile.timezone])],
+    timezones: [...new Set([
+      profile.timezone,
+      ...weekTimezones.rows.map((r: any) => r.timezone).filter(Boolean),
+    ])],
     historyVitals: histVitals.rows.map((r: any) => ({
       local_date: day(r.local_date), resting_hr: r.resting_hr, hrv_sdnn_ms: r.hrv_sdnn_ms,
     })),
@@ -185,7 +228,7 @@ export async function assembleWeeklyData(
       start_at: iso(r.start_at), duration_min: Number(r.duration_min), avg_hr: r.avg_hr,
     })),
     weeksSinceLastWorkout: lastWorkout.rows[0]?.last
-      ? Math.floor((new Date(`${weekStart}T00:00:00Z`).getTime() + 7 * 86400e3 -
+      ? Math.floor((new Date(weekEndInstant).getTime() -
                     new Date(lastWorkout.rows[0].last).getTime()) / (7 * 86400e3))
       : null,
   };

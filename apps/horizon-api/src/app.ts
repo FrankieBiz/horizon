@@ -16,6 +16,9 @@ export interface AppDeps {
   cronSecret: string;
   /** Injected in Stage 4; the route 503s until then if absent. */
   runWeekly?: WeeklyRunner;
+  /** Transaction wrapper; account deletion must be all-or-nothing.
+   * Defaults to non-transactional passthrough (tests). */
+  withTx?: <T>(run: (tx: Queryable) => Promise<T>) => Promise<T>;
 }
 
 /** Build the app with injected dependencies — tests pass fakes. */
@@ -146,7 +149,10 @@ export function buildApp(deps: AppDeps): Express {
 
   app.delete("/v1/account", authed, async (req, res, next) => {
     try {
-      await account.deleteAccountRows(deps.db, req.userId!);
+      // All-or-nothing: a mid-sequence failure must not leave partial health
+      // data behind (review finding).
+      const withTx = deps.withTx ?? (<T,>(run: (tx: Queryable) => Promise<T>) => run(deps.db));
+      await withTx((tx) => account.deleteAccountRows(tx, req.userId!));
       await deps.deleteAuthUser(req.userId!);
       res.json({ deleted: true });
     } catch (e) {

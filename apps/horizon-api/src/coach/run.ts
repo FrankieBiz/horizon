@@ -69,7 +69,9 @@ function violationsOf(summary: WeeklySummary, data: WeeklyData): DenylistViolati
     coachMessage: summary.coach_message,
     recommendationTexts: summary.recommendations.flatMap((r) => [r.message, r.rationale]),
     observationTexts: [
-      ...summary.domain_analyses.flatMap((d) => d.observations),
+      // EVERY model-generated string that reaches the client gets scanned —
+      // evidence included (review finding: it was the one bypass).
+      ...summary.domain_analyses.flatMap((d) => [...d.observations, ...d.evidence]),
       ...summary.wins,
       ...summary.focus_areas,
     ],

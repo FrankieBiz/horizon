@@ -1,5 +1,5 @@
 import { buildApp } from "./app.js";
-import { getPool } from "./db/pool.js";
+import { getPool, withTransaction } from "./db/pool.js";
 import { env } from "./env.js";
 import { supabaseVerifier } from "./middleware/auth.js";
 import { supabaseAuthDeleter } from "./services/accountService.js";
@@ -14,6 +14,7 @@ const app = buildApp({
   verifyToken: supabaseVerifier(e.SUPABASE_JWT_SECRET),
   deleteAuthUser: supabaseAuthDeleter(e.SUPABASE_URL, e.SUPABASE_SERVICE_ROLE_KEY),
   cronSecret: e.CRON_SECRET,
+  withTx: withTransaction,
   runWeekly: makeWeeklyRunnerWithDeps({
     db: getPool(),
     generate: makeAnthropicGenerator(e.ANTHROPIC_API_KEY, e.ANTHROPIC_MODEL),
