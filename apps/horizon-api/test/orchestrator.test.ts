@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildFallbackMessage, makeWeeklyRunnerWithDeps, previousWeekStart } from "../src/coach/run.js";
+import { zonedMidnightUtc } from "../src/coach/assemble.js";
 import { structuredOutputSchema } from "../src/coach/anthropic.js";
 import type { GenerateResult } from "../src/coach/anthropic.js";
 import type { WeeklySummary } from "../src/coach/schemas.js";
@@ -58,11 +59,12 @@ function seededDb(): RoutedDb {
     "from activity_daily where user_id = $1 and local_date between": fixture.week.activity,
     "from nutrition_daily where user_id = $1 and local_date between": fixture.week.nutrition,
     "from body_metrics": [],
-    "from workouts where user_id = $1 and start_at >= $2::date and start_at <": fixture.week.workouts,
+    "from workouts where user_id = $1 and start_at >= $2::timestamptz and start_at < $3::timestamptz order by start_at": fixture.week.workouts,
+    "from habit_logs where user_id = $1 and local_date between": [],
     "from vitals_daily where user_id = $1 and local_date >=": Array.from({ length: 60 }, (_, i) => ({ local_date: `h${i}`, resting_hr: 53, hrv_sdnn_ms: 60 })),
     "from sleep_daily where user_id = $1 and local_date >=": Array.from({ length: 60 }, () => ({ local_date: "h", total_min: 440 })),
     "from activity_daily where user_id = $1 and local_date >=": Array.from({ length: 28 }, () => ({ local_date: "h", steps: 9000 })),
-    "from workouts where user_id = $1 and start_at >= ($2::date - interval '28 days')": Array.from({ length: 8 }, () => ({ start_at: "2026-06-20T22:00:00Z", duration_min: 50, avg_hr: 130 })),
+    "select start_at, duration_min, avg_hr from workouts": Array.from({ length: 8 }, (_, i) => ({ start_at: `2026-06-${String(2 + i * 3).padStart(2, "0")}T22:00:00Z`, duration_min: 50, avg_hr: 130 })),
     "select max(start_at) as last": [{ last: "2026-07-04T22:00:00Z" }],
     "from habits h": [],
     "from habit_logs": [],
@@ -150,6 +152,23 @@ describe("weekly orchestrator", () => {
     const succeeded = db.runUpdates.find((u) => u.text.includes("'succeeded'"));
     expect(succeeded).toBeDefined();
     expect(succeeded!.params).toContain(8000);
+    // Guard: the history window must satisfy the >=60-day baseline gate
+    // (review finding: a 56-day window silently killed the recovery pathway).
+    expect(db.calls.some((c) => c.text.includes("interval '60 days'"))).toBe(true);
+    // Guard: workout windows are local-week timestamptz bounds, not date casts.
+    const workoutCall = db.calls.find((c) =>
+      c.text.includes("from workouts where user_id = $1 and start_at >= $2::timestamptz"));
+    expect(workoutCall).toBeDefined();
+    expect(workoutCall!.params![1]).toBe("2026-06-29T04:00:00.000Z"); // EDT midnight
+  });
+
+  it("zonedMidnightUtc converts local midnight to the right instant (DST both sides)", () => {
+    expect(zonedMidnightUtc("2026-07-06", "America/New_York").toISOString())
+      .toBe("2026-07-06T04:00:00.000Z"); // EDT
+    expect(zonedMidnightUtc("2026-01-05", "America/New_York").toISOString())
+      .toBe("2026-01-05T05:00:00.000Z"); // EST
+    expect(zonedMidnightUtc("2026-07-06", "UTC").toISOString())
+      .toBe("2026-07-06T00:00:00.000Z");
   });
 
   it("skips a week that already succeeded (idempotent reruns)", async () => {

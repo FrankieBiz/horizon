@@ -72,6 +72,22 @@ describe("adversarial: lay-term and morphological variants (review findings)", (
     expect(scanText(text).length, text).toBeGreaterThan(0);
   });
 
+  it.each([
+    "You should start taking creatine for recovery.",
+    "Try adding a magnesium supplement before bed.",
+    "Take vitamin D3 daily this winter.",
+    "Stop the fish oil while training hard.",
+  ])("catches supplement initiation advice: %s", (text) => {
+    expect(scanText(text).length, text).toBeGreaterThan(0);
+  });
+
+  it.each([
+    "Increase to 5000 IU on cloudy weeks.",
+    "Reduce that to 200 mg in the evening.",
+  ])("catches dose-change advice in either direction: %s", (text) => {
+    expect(scanText(text).map((v) => v.rule), text).toContain("dosage_advice");
+  });
+
   it("violation hidden in domain_analyses evidence is caught (backstop bypass fix)", () => {
     const violations = scanSummaryText({
       coachMessage: "Clean summary with your 7h12m sleep average.",
@@ -92,6 +108,11 @@ describe("adversarial: must pass (no false positives on real coaching)", () => {
     "A weekend retreat helped your step count recover.",
     "Stay curious about what moves your numbers.",
     "Your bedtime crept later midweek — anchor it at 11pm.",
+    // "treat … as …" framing is legitimate coaching language
+    "Treat this as a rest week and keep the walks easy.",
+    "Treat missing days as gaps, not failures.",
+    // Adherence commentary on the user's OWN supplements is fine
+    "You logged your Vitamin D on 6 of 7 scheduled days.",
     // Legitimate wellness language
     "Your HRV of 58ms is 1.2 SD below your own 60-day baseline.",
     "Swap one hard session for an easy walk and recheck next week.",
