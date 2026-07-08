@@ -4,14 +4,16 @@
 
 import { getPool } from "../db/pool.js";
 import { env } from "../env.js";
-import { makeAnthropicGenerator } from "../coach/anthropic.js";
+import { makeGenerator } from "../coach/provider.js";
+import { activeProviderLabel } from "../coach/provider.js";
 import { makeWeeklyRunnerWithDeps } from "../coach/run.js";
 import { makeNotifier } from "../services/pushService.js";
 
 const e = env();
+console.log(`[weekly] LLM provider: ${activeProviderLabel(e)}`);
 const runner = makeWeeklyRunnerWithDeps({
   db: getPool(),
-  generate: makeAnthropicGenerator(e.ANTHROPIC_API_KEY, e.ANTHROPIC_MODEL),
+  generate: makeGenerator(e),
   notify: makeNotifier(getPool(), e),
 });
 

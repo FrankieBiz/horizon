@@ -49,10 +49,22 @@ build environment couldn't run).
 4. Paste into `apps/horizon-ios/Horizon/Sync/AuthService.swift`:
    `supabaseURL` and `supabaseAnonKey` (the anon key is safe to ship).
 
-## 3. Anthropic API key (2 min) — unblocks the coach
+## 3. LLM key for the coach (2 min) — unblocks the weekly review
 
-Create a key at console.anthropic.com → `ANTHROPIC_API_KEY`. Expected cost:
-~$0.09/user/week on `claude-opus-4-8` (default; override via `ANTHROPIC_MODEL`).
+The app is configured for **DeepSeek** (`LLM_PROVIDER=deepseek`). You already have a
+DeepSeek key on this machine (macOS Keychain, service `deepseek-api`, used by
+`dsclaude`) — reuse it, or get/top-up one at platform.deepseek.com. That value is
+`DEEPSEEK_API_KEY`. Retrieve the existing key with:
+
+```sh
+security find-generic-password -s deepseek-api -w
+```
+
+Cost is a few cents/month for one user on `deepseek-chat`. **Privacy note:** on this
+provider a week of your health data is sent to DeepSeek (operated from China) to write
+the review — see `docs/privacy/health-data-privacy-policy.md`. To use Claude instead,
+set `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` (from console.anthropic.com) in
+Render — no code change.
 
 ## 4. Deploy the API on Render (20 min)
 
@@ -67,7 +79,10 @@ Fill the env vars it prompts for (table below). This creates:
 |---|---|
 | `DATABASE_URL` | Supabase pooled connection string |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` | from step 2 |
-| `ANTHROPIC_API_KEY` (+ optional `ANTHROPIC_MODEL`) | from step 3 |
+| `LLM_PROVIDER` | `deepseek` (blueprint default) |
+| `DEEPSEEK_API_KEY` | from step 3 |
+| `DEEPSEEK_MODEL` | `deepseek-chat` (blueprint default) |
+| `ANTHROPIC_API_KEY` | leave blank unless you set `LLM_PROVIDER=anthropic` |
 | `CRON_SECRET` | any random ≥16 chars — also used for manual triggers |
 | `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_KEY_P8` / `APNS_ENV` | from step 5 (leave unset until then — push simply stays off) |
 | `NODE_ENV` | `production` |

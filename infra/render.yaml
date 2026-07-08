@@ -19,6 +19,14 @@ services:
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
+      # LLM provider for the weekly coach. deepseek routes through DeepSeek's
+      # Anthropic-compatible endpoint; set anthropic + ANTHROPIC_API_KEY to use Claude.
+      - key: LLM_PROVIDER
+        value: deepseek
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: CRON_SECRET
@@ -46,5 +54,6 @@ services:
           name: horizon-api
           envVarKeys:
             [NODE_ENV, DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-             SUPABASE_JWT_SECRET, ANTHROPIC_API_KEY, CRON_SECRET,
+             SUPABASE_JWT_SECRET, LLM_PROVIDER, DEEPSEEK_API_KEY, DEEPSEEK_MODEL,
+             ANTHROPIC_API_KEY, CRON_SECRET,
              APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY_P8, APNS_ENV]

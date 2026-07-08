@@ -4,7 +4,7 @@ import { env } from "./env.js";
 import { supabaseVerifier } from "./middleware/auth.js";
 import { supabaseAuthDeleter } from "./services/accountService.js";
 import { makeWeeklyRunnerWithDeps } from "./coach/run.js";
-import { makeAnthropicGenerator } from "./coach/anthropic.js";
+import { makeGenerator } from "./coach/provider.js";
 import { makeNotifier } from "./services/pushService.js";
 
 const e = env();
@@ -17,7 +17,7 @@ const app = buildApp({
   withTx: withTransaction,
   runWeekly: makeWeeklyRunnerWithDeps({
     db: getPool(),
-    generate: makeAnthropicGenerator(e.ANTHROPIC_API_KEY, e.ANTHROPIC_MODEL),
+    generate: makeGenerator(e),
     notify: makeNotifier(getPool(), e),
   }),
 });

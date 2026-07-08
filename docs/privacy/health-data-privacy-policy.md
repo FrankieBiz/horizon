@@ -57,7 +57,7 @@ purposes:
 |---|---|---|
 | Supabase | Database hosting | Your stored health data (encrypted in transit and at rest) |
 | Render | Server hosting | Health data transiting our backend |
-| Anthropic | AI processing (Claude) | The week of data needed to generate your coaching message |
+| DeepSeek | AI processing (generates the weekly coaching message) | The week of data needed to write your coaching review. **DeepSeek is operated from China**; data processed there is subject to that jurisdiction. This is the app's configured AI processor (`LLM_PROVIDER=deepseek`); if switched to Anthropic, that provider (US) replaces this row. |
 | Apple | Push notifications | **No health data** — notification payloads contain none |
 
 No other third party receives your health data. If this list ever changes, the policy
