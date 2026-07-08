@@ -41,7 +41,7 @@ services:
   - type: web
     name: horizon-api
     runtime: node
-    plan: starter
+    plan: free
     rootDir: .
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter horizon-api build
     startCommand: node apps/horizon-api/dist/index.js
@@ -52,7 +52,7 @@ services:
   - type: cron
     name: horizon-weekly
     runtime: node
-    plan: starter
+    plan: free
     rootDir: .
     schedule: "0 12 * * 1" # Monday 12:00 UTC ≈ 7-8am US-East
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter horizon-api build
