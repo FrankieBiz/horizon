@@ -39,7 +39,8 @@ describe("account rights", () => {
     for (const table of ["profiles", "sleep_daily", "vitals_daily", "activity_daily",
                          "nutrition_daily", "body_metrics", "workouts", "habits",
                          "biomarker_panels", "weekly_checkins", "weekly_summaries",
-                         "coach_runs", "habit_logs", "biomarker_results", "recommendations"]) {
+                         "coach_runs", "habit_logs", "biomarker_results", "recommendations",
+                         "habit_schedules", "supplement_details"]) {
       expect(dump).toHaveProperty(table);
     }
   });

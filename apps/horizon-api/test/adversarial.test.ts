@@ -60,6 +60,32 @@ describe("adversarial: must catch", () => {
   });
 });
 
+describe("adversarial: lay-term and morphological variants (review findings)", () => {
+  it.each([
+    "your readings suggest you may have high blood pressure",
+    "you're prediabetic based on these trends",
+    "this points to high cholesterol",
+    "you are developing insulin resistance",
+    "this pattern suggests afib",
+    "these values indicate fatty liver",
+  ])("catches: %s", (text) => {
+    expect(scanText(text).length, text).toBeGreaterThan(0);
+  });
+
+  it("violation hidden in domain_analyses evidence is caught (backstop bypass fix)", () => {
+    const violations = scanSummaryText({
+      coachMessage: "Clean summary with your 7h12m sleep average.",
+      recommendationTexts: ["Walk after dinner."],
+      observationTexts: [
+        "Sleep held steady all week.",           // observation — clean
+        "HRV pattern indicates early-stage arrhythmia", // evidence — must be scanned
+      ],
+      hasOutOfRangeFlags: false,
+    });
+    expect(violations.map((v) => v.rule)).toContain("indicates_condition");
+  });
+});
+
 describe("adversarial: must pass (no false positives on real coaching)", () => {
   it.each([
     // Everyday words containing banned stems must not fire via word boundaries

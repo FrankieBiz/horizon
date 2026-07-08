@@ -7,15 +7,17 @@ export interface DenylistViolation {
   match: string;
 }
 
+// Clinical terms AND lay/morphological variants (review finding: "high blood
+// pressure", "prediabetic", "high cholesterol" evaded the clinical-only list).
 const CONDITIONS =
-  "(?:diabetes|prediabetes|hypertension|cancer|arrhythmia|apnea|hypothyroid\\w*|hyperthyroid\\w*|anemia|depression|anxiety disorder|insomnia disorder|metabolic syndrome|heart disease|kidney disease|liver disease|hyperlipidemia|hypercholesterolemia)";
+  "(?:pre[- ]?diabet\\w+|diabet\\w+|hypertens\\w+|high blood pressure|cancer\\w*|arrhythmi\\w+|atrial fibrillation|afib|apnea|hypothyroid\\w*|hyperthyroid\\w*|(?:low|under[- ]?active|over[- ]?active) thyroid|anemi\\w+|depression|anxiety disorder|insomnia disorder|metabolic syndrome|insulin resistan\\w+|heart disease|cardiovascular disease|kidney disease|liver disease|fatty liver|hyperlipidemi\\w+|hypercholesterolemi\\w+|high cholesterol)";
 
 const RULES: Array<{ rule: string; pattern: RegExp }> = [
   { rule: "diagnosis_verb", pattern: /\bdiagnos(?:e|es|ed|is|ing)\b/i },
   { rule: "cure_claim", pattern: /\bcur(?:e|es|ed|ing)\b(?!\s*iosity)/i },
   { rule: "treatment_advice", pattern: /\btreat(?:s|ed|ing|ment|ments)?\b/i },
   { rule: "prescription", pattern: /\bprescri(?:be|bes|bed|bing|ption|ptions)\b/i },
-  { rule: "you_have_condition", pattern: new RegExp(`\\byou (?:have|may have|might have|likely have|are developing)\\b[^.!?]{0,60}${CONDITIONS}`, "i") },
+  { rule: "you_have_condition", pattern: new RegExp(`\\byou(?:'re| are| have| may have| might have| likely have| may be| might be| appear to be| seem)\\b[^.!?]{0,60}${CONDITIONS}`, "i") },
   { rule: "indicates_condition", pattern: new RegExp(`\\b(?:indicat\\w*|suggest\\w*|is a sign of|points? to)\\b[^.!?]{0,60}${CONDITIONS}`, "i") },
   { rule: "condition_risk_claim", pattern: new RegExp(`\\b(?:risk|chance|likelihood) of\\b[^.!?]{0,40}${CONDITIONS}`, "i") },
   { rule: "medication_advice", pattern: /\b(?:start|stop|increase|decrease|adjust|taper|double|halve|skip)\b[^.!?]{0,40}\b(?:medication|meds|dose|dosage|statin|metformin|insulin)\b/i },

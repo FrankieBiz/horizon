@@ -178,6 +178,28 @@ describe("weekly orchestrator", () => {
     expect(gen.calls[1]).toContain("indicates_condition");
   });
 
+  it("catches a violation hidden ONLY in domain_analyses evidence (backstop fix)", async () => {
+    const evidenceBypass: WeeklySummary = {
+      ...goodSummary,
+      domain_analyses: [{
+        domain: "sleep_recovery",
+        observations: ["Sleep steady all week."],
+        severity: "info",
+        evidence: ["HRV pattern indicates early-stage arrhythmia"],
+      }],
+    };
+    const db = seededDb();
+    const gen = generator([evidenceBypass, goodSummary]);
+    const run = makeWeeklyRunnerWithDeps({
+      db, generate: gen.generate, now: () => new Date("2026-07-06T12:00:00Z"),
+    });
+    const results = await run();
+    // Draft 1 must be rejected (evidence scanned), draft 2 accepted.
+    expect(gen.calls).toHaveLength(2);
+    expect(gen.calls[1]).toContain("indicates_condition");
+    expect(results[0]!.status).toBe("succeeded");
+  });
+
   it("falls back to metrics-only after two violating drafts", async () => {
     const db = seededDb();
     const gen = generator([badSummary, badSummary]);
