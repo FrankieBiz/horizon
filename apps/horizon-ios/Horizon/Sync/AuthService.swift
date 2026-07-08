@@ -6,8 +6,8 @@ import AuthenticationServices
 @MainActor
 final class AuthService {
 
-    static let supabaseURL = URL(string: "https://YOUR-PROJECT-REF.supabase.co")! // set in Stage-2 setup
-    static let supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY" // publishable anon key, safe in client
+    static let supabaseURL = URL(string: "https://ejhomaidmvrdovvuvqya.supabase.co")!
+    static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqaG9tYWlkbXZyZG92dnV2cXlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1MDQ3MzEsImV4cCI6MjA5OTA4MDczMX0.aT_OTJMrqeras44v2rqca7i-P7nGhtpoIUC4R229N-s" // anon key — safe in client
 
     private(set) var accessToken: String?
     private(set) var userID: String?
