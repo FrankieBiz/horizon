@@ -42,6 +42,9 @@ targets:
           reserved for optionally saving your manual logs back to Health in a
           future update.
         UIBackgroundModes: [remote-notification]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.frankbisignano.Horizon
+            CFBundleURLSchemes: [horizon]
     settings:
       base:
         SWIFT_VERSION: "6.0"
