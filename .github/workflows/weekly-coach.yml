@@ -1,0 +1,17 @@
+name: Weekly Coach Trigger
+
+# Render Cron Jobs have no free tier, so the Monday weekly-coach run is
+# triggered here instead, via a POST to the free horizon-api web service's
+# internal endpoint, authenticated with the shared CRON_SECRET.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1" # Monday 12:00 UTC (~7-8am US-East)
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call horizon-api weekly coach endpoint
+        run: curl --fail --show-error --request POST "${{ secrets.RENDER_APP_URL }}/internal/coach/run" --header "x-cron-secret: ${{ secrets.CRON_SECRET }}"
