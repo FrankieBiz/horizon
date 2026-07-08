@@ -66,6 +66,32 @@ export function buildApp(deps: AppDeps): Express {
     }
   });
 
+  // ---- Profile (timezone, goals, APNs token) ----
+  app.put("/v1/profile", authed, async (req, res, next) => {
+    try {
+      const { updateProfile, profileUpdate } = await import("./services/profileService.js");
+      const body = profileUpdate.parse(req.body);
+      await updateProfile(deps.db, req.userId!, body);
+      res.json({ ok: true });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  app.get("/v1/profile", authed, async (req, res, next) => {
+    try {
+      const { getProfile } = await import("./services/profileService.js");
+      const profile = await getProfile(deps.db, req.userId!);
+      if (!profile) {
+        res.status(404).json({ error: "no profile", code: "not_found" });
+        return;
+      }
+      res.json(profile);
+    } catch (e) {
+      next(e);
+    }
+  });
+
   // ---- Weekly review ----
   app.get("/v1/reviews/latest", authed, async (req, res, next) => {
     try {

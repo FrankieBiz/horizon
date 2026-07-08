@@ -33,6 +33,9 @@ struct HorizonApp: App {
                     appState.configure(modelContainer: container)
                     await appState.onLaunch()
                 }
+                .onOpenURL { url in
+                    appState.handleDeepLink(url)
+                }
         }
     }
 }
