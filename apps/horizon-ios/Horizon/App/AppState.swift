@@ -90,6 +90,14 @@ final class AppState {
         }
     }
 
+    /// Upload the APNs device token so the weekly job can notify this device.
+    func uploadPushToken(_ token: String) async {
+        guard let auth = auth.accessToken else { return }
+        struct TokenBody: Encodable { let apnsToken: String }
+        let _: APIClient.EmptyResponse? = try? await api.put(
+            "/v1/profile", body: TokenBody(apnsToken: token), token: auth)
+    }
+
     func pushSync() async {
         guard isAuthenticated, let sync else { return }
         do {

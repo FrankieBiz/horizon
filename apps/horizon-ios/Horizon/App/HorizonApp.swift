@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct HorizonApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState = AppState()
     let container: ModelContainer
 
@@ -30,8 +31,12 @@ struct HorizonApp: App {
                 .environment(appState)
                 .modelContainer(container)
                 .task {
+                    AppDelegate.appState = appState
                     appState.configure(modelContainer: container)
                     await appState.onLaunch()
+                    if appState.hasCompletedOnboarding, appState.isAuthenticated {
+                        await PushRegistration.requestAuthorizationAndRegister()
+                    }
                 }
                 .onOpenURL { url in
                     appState.handleDeepLink(url)
