@@ -8,7 +8,7 @@ struct OnboardingView: View {
     @State private var step: Step = .consent
     @State private var errorMessage: String?
 
-    enum Step { case consent, signIn, health }
+    enum Step { case consent, signIn, health, goals }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -17,6 +17,7 @@ struct OnboardingView: View {
             case .consent: consent
             case .signIn: signIn
             case .health: health
+            case .goals: goals
             }
             if let errorMessage {
                 Text(errorMessage).font(.footnote).foregroundStyle(.red)
@@ -99,17 +100,56 @@ struct OnboardingView: View {
                     try? await app.healthKit.requestAuthorization()
                     // Read-authorization status is unknowable by design — proceed
                     // either way; missing data renders as empty state.
-                    app.hasCompletedOnboarding = true
-                    await app.onLaunch()
+                    step = .goals
                 }
             } label: {
                 Text("Connect Health").frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            Button("Skip for now") {
-                app.hasCompletedOnboarding = true
-            }
-            .font(.footnote)
+            Button("Skip for now") { step = .goals }
+                .font(.footnote)
         }
+    }
+
+    private var goals: some View {
+        @Bindable var app = app
+        return VStack(spacing: 16) {
+            Text("Your targets").font(.title2.bold())
+            Text("The coach measures your weeks against these — adjust anytime in Settings.")
+                .font(.callout).foregroundStyle(.secondary)
+            Form {
+                Stepper("Sleep need: \(app.sleepNeedMin / 60)h \(app.sleepNeedMin % 60)m",
+                        value: $app.sleepNeedMin, in: 300...600, step: 15)
+                Stepper("Protein target: \(app.proteinTargetG)g",
+                        value: $app.proteinTargetG, in: 60...300, step: 5)
+            }
+            .frame(height: 160)
+            .scrollDisabled(true)
+            Button {
+                Task {
+                    await saveProfile()
+                    app.hasCompletedOnboarding = true
+                    await app.onLaunch()
+                }
+            } label: {
+                Text("Start Horizon").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private func saveProfile() async {
+        guard let token = app.auth.accessToken else { return }
+        struct ProfileBody: Encodable {
+            let timezone: String
+            let goals: Goals
+            struct Goals: Encodable { let sleepNeedMin: Int; let proteinTargetG: Int }
+        }
+        let _: APIClient.EmptyResponse? = try? await app.api.put(
+            "/v1/profile",
+            body: ProfileBody(timezone: app.timezoneID,
+                              goals: .init(sleepNeedMin: app.sleepNeedMin,
+                                           proteinTargetG: app.proteinTargetG)),
+            token: token)
     }
 }

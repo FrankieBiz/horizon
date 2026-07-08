@@ -39,6 +39,12 @@ final class APIClient: Sendable {
         try await send(path: path, method: "POST", body: body, token: token)
     }
 
+    func put<Body: Encodable, Response: Decodable>(
+        _ path: String, body: Body, token: String?
+    ) async throws -> Response {
+        try await send(path: path, method: "PUT", body: body, token: token)
+    }
+
     func get<Response: Decodable>(_ path: String, token: String?) async throws -> Response {
         try await send(path: path, method: "GET", body: Optional<Int>.none, token: token)
     }

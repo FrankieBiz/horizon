@@ -7,6 +7,16 @@ import HorizonKit
 @Observable @MainActor
 final class AppState {
 
+    // MARK: Navigation
+    enum Tab: Hashable { case review, dashboard, log, settings }
+    var selectedTab: Tab = .review
+
+    /// horizon://review/<weekStart> deep link (from the weekly push).
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme == "horizon" else { return }
+        if url.host() == "review" { selectedTab = .review }
+    }
+
     // MARK: Gating flags (drive RootView's top-level fork)
     var isAuthenticated = false
     var hasConsented: Bool {

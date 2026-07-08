@@ -19,12 +19,23 @@ struct RootView: View {
 }
 
 struct MainTabView: View {
+    @Environment(AppState.self) private var app
+
     var body: some View {
-        TabView {
-            TodayView()
-                .tabItem { Label("Today", systemImage: "heart.text.square") }
+        @Bindable var app = app
+        TabView(selection: $app.selectedTab) {
+            WeeklyReviewView()
+                .tabItem { Label("Review", systemImage: "sparkles") }
+                .tag(AppState.Tab.review)
+            DashboardView()
+                .tabItem { Label("Dashboard", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(AppState.Tab.dashboard)
             ManualEntryHubView()
                 .tabItem { Label("Log", systemImage: "square.and.pencil") }
+                .tag(AppState.Tab.log)
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(AppState.Tab.settings)
         }
     }
 }
