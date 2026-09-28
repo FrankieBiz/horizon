@@ -1,6 +1,7 @@
 {
   "name": "horizon",
   "private": true,
+  "packageManager": "pnpm@11.0.9",
   "engines": { "node": ">=22" },
   "scripts": {
     "typecheck": "pnpm -r typecheck",
