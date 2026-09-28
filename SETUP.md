@@ -88,8 +88,9 @@ Fill the env vars it prompts for (table below). This creates:
 | `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_KEY_P8` / `APNS_ENV` | from step 5 (leave unset until then — push simply stays off) |
 | `NODE_ENV` | `production` |
 
-Then set the production URL in `apps/horizon-ios/Horizon/Sync/APIClient.swift`
-(the `#else` branch) if your Render service name differs.
+The iOS app's production API URL is `https://horizon-api-yxep.onrender.com`.
+If the Render service URL changes, update the `#else` branch in
+`apps/horizon-ios/Horizon/Sync/APIClient.swift` before distribution.
 
 ## 5. APNs key (10 min) — unblocks the Monday push
 

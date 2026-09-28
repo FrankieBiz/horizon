@@ -1,5 +1,6 @@
 import { buildApp } from "./app.js";
 import { getPool, withTransaction } from "./db/pool.js";
+import { ensureWeeklyGoalsSchema } from "./db/weeklyGoalsMigration.js";
 import { env } from "./env.js";
 import { supabaseVerifier } from "./middleware/auth.js";
 import { supabaseAuthDeleter } from "./services/accountService.js";
@@ -22,6 +23,12 @@ const app = buildApp({
   }),
 });
 
-app.listen(e.PORT, () => {
-  console.log(`[horizon-api] listening on :${e.PORT} (${e.NODE_ENV})`);
+ensureWeeklyGoalsSchema(withTransaction).then(() => {
+  app.listen(e.PORT, () => {
+    console.log(`[horizon-api] listening on :${e.PORT} (${e.NODE_ENV})`);
+  });
+}).catch((error: unknown) => {
+  console.error("[horizon-api] startup migration failed:",
+    error instanceof Error ? error.message : "unknown error");
+  process.exitCode = 1;
 });

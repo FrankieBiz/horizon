@@ -15,7 +15,7 @@ final class APIClient: Sendable {
         #if DEBUG
         URL(string: "http://localhost:3000")!
         #else
-        URL(string: "https://horizon-api.onrender.com")!
+        URL(string: "https://horizon-api-yxep.onrender.com")!
         #endif
     }()
 
