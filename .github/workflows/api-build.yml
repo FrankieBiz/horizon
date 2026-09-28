@@ -1,0 +1,19 @@
+name: API Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm --filter horizon-api typecheck
+      - run: corepack pnpm --filter horizon-api test
+      - run: corepack pnpm --filter horizon-api build

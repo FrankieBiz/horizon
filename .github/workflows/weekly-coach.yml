@@ -14,4 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call horizon-api weekly coach endpoint
-        run: curl --fail --show-error --request POST "${{ secrets.RENDER_APP_URL }}/internal/coach/run" --header "x-cron-secret: ${{ secrets.CRON_SECRET }}"
+        run: |
+          curl --fail --show-error --request POST "${{ secrets.RENDER_APP_URL }}/internal/coach/run" \
+            --header "x-cron-secret: ${{ secrets.CRON_SECRET }}"
