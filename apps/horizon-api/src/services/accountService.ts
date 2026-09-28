@@ -13,6 +13,7 @@ const USER_TABLES = [
   "habits", // habit_schedules / habit_logs / supplement_details cascade via FK
   "biomarker_panels", // biomarker_results cascade via FK
   "weekly_checkins",
+  "weekly_goals",
   "weekly_summaries", // recommendations cascade via FK
   "coach_runs",
 ] as const;

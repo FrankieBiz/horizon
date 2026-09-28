@@ -13,6 +13,11 @@ import HorizonKit
 @MainActor
 final class HealthKitService {
 
+    /// HealthKit explicitly permits calling this observer completion asynchronously.
+    private struct ObserverCompletion: @unchecked Sendable {
+        let call: () -> Void
+    }
+
     private let store = HKHealthStore()
     private var observersStarted = false
 
@@ -167,9 +172,10 @@ final class HealthKitService {
         for type in readTypes.compactMap({ $0 as? HKSampleType }) {
             let query = HKObserverQuery(sampleType: type, predicate: nil) { _, completionHandler, error in
                 guard error == nil else { completionHandler(); return }
+                let completion = ObserverCompletion(call: completionHandler)
                 Task {
                     await onUpdate()
-                    completionHandler()
+                    completion.call()
                 }
             }
             store.execute(query)

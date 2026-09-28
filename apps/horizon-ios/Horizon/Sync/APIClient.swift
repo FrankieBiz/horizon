@@ -26,13 +26,6 @@ final class APIClient: Sendable {
         return e
     }()
 
-    private static let isoWithFraction: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    private static let isoPlain = ISO8601DateFormatter()
-
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
@@ -41,8 +34,10 @@ final class APIClient: Sendable {
         d.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let string = try container.decode(String.self)
-            if let date = APIClient.isoWithFraction.date(from: string)
-                ?? APIClient.isoPlain.date(from: string) {
+            let withFraction = ISO8601DateFormatter()
+            withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let plain = ISO8601DateFormatter()
+            if let date = withFraction.date(from: string) ?? plain.date(from: string) {
                 return date
             }
             throw DecodingError.dataCorruptedError(

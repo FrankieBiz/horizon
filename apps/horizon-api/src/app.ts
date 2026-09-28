@@ -7,6 +7,7 @@ import * as sync from "./services/syncService.js";
 import * as account from "./services/accountService.js";
 import type { AuthAdminDeleter } from "./services/accountService.js";
 import { getReview, markRecommendation } from "./services/reviewService.js";
+import { weeklyGoalSync, upsertWeeklyGoals, getWeeklyGoals, WeeklyGoalConflict } from "./services/weeklyGoalService.js";
 import type { WeeklyRunner } from "./coach/run.js";
 
 export interface AppDeps {
@@ -58,6 +59,21 @@ export function buildApp(deps: AppDeps): Express {
       }
     });
   }
+
+  app.post("/v1/sync/weekly-goals", authed, async (req, res, next) => {
+    try {
+      const body = weeklyGoalSync.parse(req.body);
+      const withTx = deps.withTx ?? (<T,>(run: (tx: Queryable) => Promise<T>) => run(deps.db));
+      const revisions = await withTx((tx) => upsertWeeklyGoals(tx, req.userId!, body.goals));
+      res.json({ upserted: revisions.length, revisions });
+    } catch (e) { next(e); }
+  });
+
+  app.get("/v1/weekly-goals", authed, async (req, res, next) => {
+    try {
+      res.json({ goals: await getWeeklyGoals(deps.db, req.userId!) });
+    } catch (e) { next(e); }
+  });
 
   app.post("/v1/biomarkers/panels", authed, async (req, res, next) => {
     try {
@@ -177,6 +193,10 @@ export function buildApp(deps: AppDeps): Express {
 
   // ---- Errors: zod -> 400, everything else -> 500 (no health data in logs) ----
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof WeeklyGoalConflict) {
+      res.status(409).json({ error: err.message, code: "goal_conflict", goal_id: err.goalId });
+      return;
+    }
     if (err instanceof ZodError) {
       res.status(400).json({
         error: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),

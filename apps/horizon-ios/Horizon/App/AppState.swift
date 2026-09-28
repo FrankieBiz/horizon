@@ -8,7 +8,7 @@ import HorizonKit
 final class AppState {
 
     // MARK: Navigation
-    enum Tab: Hashable { case review, dashboard, log, settings }
+    enum Tab: Hashable { case review, dashboard, goals, log, settings }
     var selectedTab: Tab = .review
 
     /// horizon://review/<weekStart> deep link (from the weekly push).
@@ -29,10 +29,16 @@ final class AppState {
     // MARK: Profile / goals (mirrored to UserDefaults; synced to profile later)
     var timezoneID: String = TimeZone.current.identifier
     var sleepNeedMin: Int {
-        didSet { UserDefaults.standard.set(sleepNeedMin, forKey: "horizon.sleepNeedMin") }
+        didSet {
+            UserDefaults.standard.set(sleepNeedMin, forKey: "horizon.sleepNeedMin")
+            UserDefaults.standard.set(true, forKey: "horizon.healthTargetsPending")
+        }
     }
     var proteinTargetG: Int {
-        didSet { UserDefaults.standard.set(proteinTargetG, forKey: "horizon.proteinTargetG") }
+        didSet {
+            UserDefaults.standard.set(proteinTargetG, forKey: "horizon.proteinTargetG")
+            UserDefaults.standard.set(true, forKey: "horizon.healthTargetsPending")
+        }
     }
 
     // MARK: Services
@@ -44,6 +50,9 @@ final class AppState {
 
     var lastSyncAt: Date?
     var lastSyncError: String?
+    var goalsSyncError: String?
+    var hasGoalConflict = false
+    var localStoreUnavailable = false
 
     init() {
         let d = UserDefaults.standard
@@ -56,15 +65,122 @@ final class AppState {
     func configure(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         self.sync = SyncEngine(container: modelContainer, api: api, auth: auth)
+        if let owner = UserDefaults.standard.string(forKey: "horizon.pendingGoalPurgeOwner") {
+            _ = purgeGoals(for: owner)
+        }
+    }
+
+    @discardableResult
+    func purgeGoals(for owner: String) -> Bool {
+        guard let modelContainer else { return false }
+        UserDefaults.standard.set(owner, forKey: "horizon.pendingGoalPurgeOwner")
+        do {
+            let context = ModelContext(modelContainer)
+            for goal in try context.fetch(FetchDescriptor<WeeklyGoalRecord>())
+                where goal.ownerID == owner {
+                context.delete(goal)
+            }
+            try context.save()
+            UserDefaults.standard.removeObject(forKey: "horizon.pendingGoalPurgeOwner")
+            return true
+        } catch {
+            return false
+        }
     }
 
     func onLaunch() async {
         isAuthenticated = await auth.restoreSession()
         guard hasConsented, isAuthenticated else { return }
+        prepareHealthTargetsForCurrentUser()
+        await reconcileHealthTargets()
+        await syncGoals()
         healthKit.startObservers { [weak self] in
             await self?.refreshFromHealthKit()
         }
         await refreshFromHealthKit()
+    }
+
+    func prepareHealthTargetsForCurrentUser() {
+        guard let owner = auth.userID else { return }
+        let defaults = UserDefaults.standard
+        if let previous = defaults.string(forKey: "horizon.healthTargetsOwnerID"),
+           previous != owner {
+            sleepNeedMin = 450
+            proteinTargetG = 140
+            defaults.set(false, forKey: "horizon.healthTargetsPending")
+        }
+        defaults.set(owner, forKey: "horizon.healthTargetsOwnerID")
+    }
+
+    func syncGoals() async {
+        guard isAuthenticated, let sync else { return }
+        do {
+            try await sync.syncWeeklyGoals()
+            goalsSyncError = nil
+            hasGoalConflict = false
+        } catch ApiError.badStatus(409, _) {
+            hasGoalConflict = true
+            goalsSyncError = "A goal changed on another device. Choose which version to keep."
+        } catch {
+            goalsSyncError = "Goals are saved on this device. They'll sync when you reconnect."
+        }
+    }
+
+    func resolveGoalConflicts(keepLocal: Bool) async {
+        guard let sync else { return }
+        do {
+            try await sync.resolveWeeklyGoalConflicts(keepLocal: keepLocal)
+            await syncGoals()
+        } catch {
+            goalsSyncError = "Couldn't resolve the goal conflict. Please try again."
+        }
+    }
+
+    /// Local edits survive a failed request and are retried at the next launch.
+    func saveHealthTargets() async -> Bool {
+        guard let token = auth.accessToken else { return false }
+        UserDefaults.standard.set(true, forKey: "horizon.healthTargetsPending")
+        struct ProfileBody: Encodable {
+            let timezone: String
+            let goals: Goals
+            struct Goals: Encodable { let sleepNeedMin: Int; let proteinTargetG: Int }
+        }
+        do {
+            let _: APIClient.EmptyResponse = try await api.put(
+                "/v1/profile",
+                body: ProfileBody(timezone: timezoneID,
+                    goals: .init(sleepNeedMin: sleepNeedMin, proteinTargetG: proteinTargetG)),
+                token: token)
+            UserDefaults.standard.set(false, forKey: "horizon.healthTargetsPending")
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func reconcileHealthTargets() async {
+        guard let token = auth.accessToken else { return }
+        if UserDefaults.standard.bool(forKey: "horizon.healthTargetsPending") {
+            _ = await saveHealthTargets()
+            return
+        }
+        struct Profile: Decodable {
+            let goalsJson: Goals
+            struct Goals: Decodable {
+                let sleepNeedMin: Int?
+                let proteinTargetG: Int?
+            }
+        }
+        do {
+            let profile: Profile = try await api.get("/v1/profile", token: token)
+            if let sleep = profile.goalsJson.sleepNeedMin { sleepNeedMin = sleep }
+            if let protein = profile.goalsJson.proteinTargetG { proteinTargetG = protein }
+            UserDefaults.standard.set(false, forKey: "horizon.healthTargetsPending")
+        } catch ApiError.badStatus(404, _) {
+            _ = await saveHealthTargets()
+        } catch {
+            // Read failed; local values remain available and we retry next launch.
+        }
     }
 
     /// Pull new HealthKit data → normalize → store locally → sync in background.

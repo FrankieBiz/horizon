@@ -30,6 +30,9 @@ struct MainTabView: View {
             DashboardView()
                 .tabItem { Label("Dashboard", systemImage: "chart.line.uptrend.xyaxis") }
                 .tag(AppState.Tab.dashboard)
+            WeeklyGoalsView()
+                .tabItem { Label("Goals", systemImage: "checkmark.circle") }
+                .tag(AppState.Tab.goals)
             ManualEntryHubView()
                 .tabItem { Label("Log", systemImage: "square.and.pencil") }
                 .tag(AppState.Tab.log)

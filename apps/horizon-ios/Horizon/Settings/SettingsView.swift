@@ -1,9 +1,11 @@
 import SwiftUI
+import SwiftData
 
 /// Account rights live here as buttons, not email requests (privacy policy §5):
 /// export everything, delete everything, plus goals and sign-out.
 struct SettingsView: View {
     @Environment(AppState.self) private var app
+    @Environment(\.modelContext) private var context
     @State private var exportURL: URL?
     @State private var busy = false
     @State private var errorMessage: String?
@@ -77,22 +79,8 @@ struct SettingsView: View {
     }
 
     private func saveGoals() async {
-        guard let token = app.auth.accessToken else { return }
-        struct GoalsBody: Encodable {
-            let timezone: String
-            let goals: Goals
-            struct Goals: Encodable { let sleepNeedMin: Int; let proteinTargetG: Int }
-        }
-        do {
-            let _: APIClient.EmptyResponse = try await app.api.put(
-                "/v1/profile", body: GoalsBody(
-                    timezone: app.timezoneID,
-                    goals: .init(sleepNeedMin: app.sleepNeedMin, proteinTargetG: app.proteinTargetG)),
-                token: token)
-            errorMessage = nil
-        } catch {
-            errorMessage = "Couldn't save goals — will retry on next sync."
-        }
+        errorMessage = await app.saveHealthTargets() ? nil
+            : "Couldn't update your coach targets. They are saved on this device and will retry at next launch."
     }
 
     private func exportData() async {
@@ -100,15 +88,36 @@ struct SettingsView: View {
         busy = true
         defer { busy = false }
         do {
-            struct Export: Decodable { let exportedAt: String; let data: [String: [AnyJSON]] }
-            struct AnyJSON: Decodable {}
-            // Fetch raw JSON and write it to a shareable temp file.
             var request = URLRequest(url: APIClient.baseURL.appending(path: "/v1/account/export"))
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (serverData, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  var export = try JSONSerialization.jsonObject(with: serverData) as? [String: Any] else {
+                throw ApiError.badStatus((response as? HTTPURLResponse)?.statusCode ?? 0, "export")
+            }
+            let owner = app.auth.userID ?? ""
+            let localGoals = try context.fetch(FetchDescriptor<WeeklyGoalRecord>())
+                .filter { $0.ownerID == owner }
+            var data = export["data"] as? [String: Any] ?? [:]
+            var exportedGoals: [[String: Any]] = []
+            for goal in localGoals {
+                let steps = (try? JSONSerialization.jsonObject(with: goal.stepsJSON)) ?? []
+                exportedGoals.append([
+                    "id": goal.localID,
+                    "week_start": goal.weekStart,
+                    "title": goal.title,
+                    "category": goal.category,
+                    "is_main": goal.isMain,
+                    "is_deleted": goal.isDeleted,
+                    "steps": steps,
+                ])
+            }
+            data["weekly_goals_local"] = exportedGoals
+            export["data"] = data
+            let payload = try JSONSerialization.data(withJSONObject: export, options: [.prettyPrinted, .sortedKeys])
             let url = FileManager.default.temporaryDirectory
                 .appending(path: "horizon-export-\(Int(Date.now.timeIntervalSince1970)).json")
-            try data.write(to: url)
+            try payload.write(to: url)
             exportURL = url
             errorMessage = nil
         } catch {
@@ -122,6 +131,8 @@ struct SettingsView: View {
         defer { busy = false }
         do {
             try await app.api.delete("/v1/account", token: token)
+            let owner = app.auth.userID ?? ""
+            _ = app.purgeGoals(for: owner)
             app.auth.signOut()
             app.isAuthenticated = false
             app.hasCompletedOnboarding = false

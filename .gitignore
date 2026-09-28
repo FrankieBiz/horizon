@@ -8,5 +8,6 @@ dist/
 # Xcode / SwiftPM (project is generated via xcodegen)
 *.xcodeproj
 *.xcworkspace
+apps/horizon-ios/Horizon/Resources/Info.plist
 .build/
 DerivedData/

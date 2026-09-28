@@ -47,8 +47,8 @@ services:
     runtime: node
     plan: free
     rootDir: .
-        buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter horizon-api build 
-        startCommand: node apps/horizon-api/dist/index.js
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm --filter horizon-api build
+    startCommand: node apps/horizon-api/dist/index.js
     healthCheckPath: /health
     envVars:
       - fromGroup: horizon-shared

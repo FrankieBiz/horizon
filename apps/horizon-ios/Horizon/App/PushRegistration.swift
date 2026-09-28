@@ -5,7 +5,7 @@ import UserNotifications
 /// APNs registration + notification-tap routing. The push payload is
 /// content-free (title + "Your weekly review is ready." + deep_link) — the
 /// review itself is fetched over the authenticated API when the app opens.
-final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotificationCenterDelegate {
 
     /// Set by HorizonApp so token/tap events reach app state.
     static weak var appState: AppState?

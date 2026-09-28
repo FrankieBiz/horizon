@@ -72,6 +72,7 @@ struct OnboardingView: View {
                         do {
                             try await app.auth.signIn(withAppleIDToken: idToken)
                             app.isAuthenticated = true
+                            app.prepareHealthTargetsForCurrentUser()
                             errorMessage = nil
                             step = .health
                         } catch {
@@ -139,17 +140,6 @@ struct OnboardingView: View {
     }
 
     private func saveProfile() async {
-        guard let token = app.auth.accessToken else { return }
-        struct ProfileBody: Encodable {
-            let timezone: String
-            let goals: Goals
-            struct Goals: Encodable { let sleepNeedMin: Int; let proteinTargetG: Int }
-        }
-        let _: APIClient.EmptyResponse? = try? await app.api.put(
-            "/v1/profile",
-            body: ProfileBody(timezone: app.timezoneID,
-                              goals: .init(sleepNeedMin: app.sleepNeedMin,
-                                           proteinTargetG: app.proteinTargetG)),
-            token: token)
+        _ = await app.saveHealthTargets()
     }
 }

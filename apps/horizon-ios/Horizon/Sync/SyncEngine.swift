@@ -10,6 +10,8 @@ actor SyncEngine {
     private let container: ModelContainer
     private let api: APIClient
     private let auth: AuthService
+    private var goalsSyncInProgress = false
+    private var goalsSyncAgain = false
 
     init(container: ModelContainer, api: APIClient, auth: AuthService) {
         self.container = container
@@ -18,6 +20,122 @@ actor SyncEngine {
     }
 
     struct UpsertResponse: Decodable { let upserted: Int }
+    private struct GoalSyncResponse: Decodable {
+        struct Revision: Decodable { let goalId: String; let revision: Int }
+        let revisions: [Revision]
+    }
+
+    private struct GoalWire: Codable {
+        let goalId: String
+        let weekStart: String
+        let title: String
+        let category: String
+        let isMain: Bool
+        let isDeleted: Bool
+        let steps: [GoalStep]
+        let revision: Int
+    }
+
+    private struct GoalList: Decodable { let goals: [GoalWire] }
+
+    /// Push local edits first, then refresh other-device changes. Deleted goals
+    /// remain as tombstones so an offline delete cannot reappear on the next pull.
+    func syncWeeklyGoals() async throws {
+        guard !goalsSyncInProgress else {
+            goalsSyncAgain = true
+            return
+        }
+        goalsSyncInProgress = true
+        defer { goalsSyncInProgress = false }
+        repeat {
+            goalsSyncAgain = false
+            try await syncWeeklyGoalsOnce()
+        } while goalsSyncAgain
+    }
+
+    private func syncWeeklyGoalsOnce() async throws {
+        guard let token = await auth.accessToken,
+              let owner = await auth.userID else { throw ApiError.notAuthenticated }
+        let ctx = ModelContext(container)
+        ctx.autosaveEnabled = false
+        let local = try ctx.fetch(FetchDescriptor<WeeklyGoalRecord>())
+            .filter { $0.ownerID == owner }
+        let pending = local.filter { $0.syncedAt == nil }
+        for goal in pending {
+            let wire = GoalWire(goalId: goal.localID.lowercased(), weekStart: goal.weekStart,
+                                title: goal.title, category: goal.category,
+                                isMain: goal.isMain, isDeleted: goal.isDeleted,
+                                steps: try JSONDecoder().decode([GoalStep].self, from: goal.stepsJSON),
+                                revision: goal.serverRevision)
+            let snapshot = goal.updatedAt
+            let response: GoalSyncResponse = try await api.post(
+                "/v1/sync/weekly-goals", body: ["goals": [wire]], token: token)
+            guard let revision = response.revisions.first?.revision else {
+                throw ApiError.decoding(DecodingError.dataCorrupted(.init(
+                    codingPath: [], debugDescription: "missing goal revision")))
+            }
+            let fresh = ModelContext(container)
+            for goal in try fresh.fetch(FetchDescriptor<WeeklyGoalRecord>())
+                where goal.ownerID == owner && goal.localID.lowercased() == wire.goalId {
+                goal.serverRevision = revision
+                if goal.updatedAt == snapshot { goal.syncedAt = .now }
+            }
+            try fresh.save()
+        }
+
+        let response: GoalList = try await api.get("/v1/weekly-goals", token: token)
+        let pullCtx = ModelContext(container)
+        let current = try pullCtx.fetch(FetchDescriptor<WeeklyGoalRecord>())
+            .filter { $0.ownerID == owner }
+        let byID = Dictionary(uniqueKeysWithValues: current.map { ($0.localID.lowercased(), $0) })
+        for remote in response.goals {
+            if let existing = byID[remote.goalId], existing.syncedAt == nil { continue }
+            let record = byID[remote.goalId] ?? WeeklyGoalRecord()
+            if byID[remote.goalId] == nil {
+                record.localID = remote.goalId
+                record.ownerID = owner
+                pullCtx.insert(record)
+            }
+            record.weekStart = remote.weekStart
+            record.title = remote.title
+            record.category = remote.category
+            record.isMain = remote.isMain
+            record.isDeleted = remote.isDeleted
+            record.stepsJSON = try JSONEncoder().encode(remote.steps)
+            record.serverRevision = remote.revision
+            record.syncedAt = .now
+        }
+        try pullCtx.save()
+    }
+
+    /// Resolve only records with divergent server revisions. Local edits stay
+    /// intact until the user explicitly chooses which copy to keep.
+    func resolveWeeklyGoalConflicts(keepLocal: Bool) async throws {
+        guard let token = await auth.accessToken,
+              let owner = await auth.userID else { throw ApiError.notAuthenticated }
+        let response: GoalList = try await api.get("/v1/weekly-goals", token: token)
+        let remoteByID = Dictionary(uniqueKeysWithValues:
+            response.goals.map { ($0.goalId.lowercased(), $0) })
+        let ctx = ModelContext(container)
+        for local in try ctx.fetch(FetchDescriptor<WeeklyGoalRecord>())
+            where local.ownerID == owner && local.syncedAt == nil {
+            guard let remote = remoteByID[local.localID.lowercased()],
+                  remote.revision != local.serverRevision else { continue }
+            if keepLocal {
+                local.serverRevision = remote.revision
+            } else {
+                local.weekStart = remote.weekStart
+                local.title = remote.title
+                local.category = remote.category
+                local.isMain = remote.isMain
+                local.isDeleted = remote.isDeleted
+                local.stepsJSON = try JSONEncoder().encode(remote.steps)
+                local.serverRevision = remote.revision
+                local.syncedAt = .now
+            }
+        }
+        try ctx.save()
+    }
 
     func pushPending() async throws {
         guard let token = await auth.accessToken else { throw ApiError.notAuthenticated }

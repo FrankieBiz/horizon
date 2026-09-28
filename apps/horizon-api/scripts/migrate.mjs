@@ -16,7 +16,7 @@ if (!url) {
 }
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations");
-const files = ["001_core.sql", "002_habits.sql", "003_biomarkers.sql", "004_weekly.sql"];
+const files = ["001_core.sql", "002_habits.sql", "003_biomarkers.sql", "004_weekly.sql", "005_weekly_goals.sql"];
 
 const client = new pg.Client({ connectionString: url });
 await client.connect();
@@ -30,9 +30,9 @@ try {
   const { rows } = await client.query(
     `select count(*)::int as n from information_schema.tables
       where table_schema = 'public'
-        and table_name in ('profiles','sleep_daily','weekly_summaries','coach_runs')`
+        and table_name in ('profiles','sleep_daily','weekly_summaries','coach_runs','weekly_goals')`
   );
-  console.log(`verified ${rows[0].n}/4 key tables present`);
+  console.log(`verified ${rows[0].n}/5 key tables present`);
   console.log("all migrations applied");
 } finally {
   await client.end();

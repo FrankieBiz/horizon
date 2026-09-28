@@ -9,8 +9,7 @@ import HorizonKit
 // mirroring the server conflict rule; HealthKit never overwrites manual.
 
 @Model final class SleepDayRecord {
-    #Unique<SleepDayRecord>([\.localDate])
-    var localDate: String = ""
+    @Attribute(.unique) var localDate: String = ""
     var totalMin: Int = 0
     var inBedMin: Int = 0
     var deepMin: Int?
@@ -26,8 +25,7 @@ import HorizonKit
 }
 
 @Model final class VitalsDayRecord {
-    #Unique<VitalsDayRecord>([\.localDate])
-    var localDate: String = ""
+    @Attribute(.unique) var localDate: String = ""
     var restingHr: Double?
     var hrvSdnnMs: Double?
     var respiratoryRate: Double?
@@ -38,8 +36,7 @@ import HorizonKit
 }
 
 @Model final class ActivityDayRecord {
-    #Unique<ActivityDayRecord>([\.localDate])
-    var localDate: String = ""
+    @Attribute(.unique) var localDate: String = ""
     var steps: Int = 0
     var activeEnergyKcal: Double = 0
     var exerciseMin: Int = 0
@@ -50,8 +47,7 @@ import HorizonKit
 }
 
 @Model final class NutritionDayRecord {
-    #Unique<NutritionDayRecord>([\.localDate])
-    var localDate: String = ""
+    @Attribute(.unique) var localDate: String = ""
     var caloriesKcal: Double?
     var proteinG: Double?
     var carbsG: Double?
@@ -65,8 +61,7 @@ import HorizonKit
 }
 
 @Model final class BodyDayRecord {
-    #Unique<BodyDayRecord>([\.localDate])
-    var localDate: String = ""
+    @Attribute(.unique) var localDate: String = ""
     var weightKg: Double?
     var bodyFatPct: Double?
     var source: String = "healthkit"
@@ -76,8 +71,7 @@ import HorizonKit
 }
 
 @Model final class WorkoutRecordModel {
-    #Unique<WorkoutRecordModel>([\.syncIdentifier])
-    var syncIdentifier: String = ""
+    @Attribute(.unique) var syncIdentifier: String = ""
     var workoutType: String = ""
     var startAt: Date = Date.distantPast
     var endAt: Date = Date.distantPast
@@ -143,8 +137,7 @@ import HorizonKit
 }
 
 @Model final class WeeklyCheckinRecord {
-    #Unique<WeeklyCheckinRecord>([\.weekStart])
-    var weekStart: String = ""
+    @Attribute(.unique) var weekStart: String = ""
     var energy: Int = 3
     var soreness: Int = 3
     var sleepQuality: Int = 3
@@ -156,11 +149,28 @@ import HorizonKit
 
 /// Cache of the latest fetched weekly review for offline display.
 @Model final class WeeklySummaryCache {
-    #Unique<WeeklySummaryCache>([\.weekStart])
-    var weekStart: String = ""
+    @Attribute(.unique) var weekStart: String = ""
     var coachMessage: String = ""
     var payloadJSON: Data = Data()
     var fetchedAt: Date = Date.now
+
+    init() {}
+}
+
+/// Personal weekly goals are stored on device, separate from health coaching targets.
+@Model final class WeeklyGoalRecord {
+    @Attribute(.unique) var localID: String = UUID().uuidString.lowercased()
+    var ownerID: String = ""
+    var weekStart: String = ""
+    var title: String = ""
+    var category: String = "Personal"
+    var isMain: Bool = false
+    var isDeleted: Bool = false
+    var stepsJSON: Data = Data()
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    var serverRevision: Int = 0
+    var syncedAt: Date?
 
     init() {}
 }
@@ -173,7 +183,7 @@ struct LocalStore {
         NutritionDayRecord.self, BodyDayRecord.self, WorkoutRecordModel.self,
         HabitModel.self, HabitLogModel.self,
         BiomarkerPanelModel.self, BiomarkerResultModel.self,
-        WeeklyCheckinRecord.self, WeeklySummaryCache.self,
+        WeeklyCheckinRecord.self, WeeklySummaryCache.self, WeeklyGoalRecord.self,
     ]
 
     let container: ModelContainer

@@ -6,22 +6,20 @@ struct HorizonApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState = AppState()
     let container: ModelContainer
+    let isMemoryOnly: Bool
 
     init() {
-        // Resilient container init (house pattern): try disk → wipe & retry → in-memory.
-        // Launch must never fatalError.
+        // Never erase the on-disk store after a schema or migration failure.
+        // An in-memory session keeps the app launchable while preserving the data
+        // for recovery on a later launch.
         let schema = Schema(LocalStore.models)
         do {
             container = try ModelContainer(for: schema)
+            isMemoryOnly = false
         } catch {
-            let url = URL.applicationSupportDirectory.appending(path: "default.store")
-            try? FileManager.default.removeItem(at: url)
-            if let retried = try? ModelContainer(for: schema) {
-                container = retried
-            } else {
-                let memoryOnly = ModelConfiguration(isStoredInMemoryOnly: true)
-                container = try! ModelContainer(for: schema, configurations: memoryOnly)
-            }
+            let memoryOnly = ModelConfiguration(isStoredInMemoryOnly: true)
+            container = try! ModelContainer(for: schema, configurations: memoryOnly)
+            isMemoryOnly = true
         }
     }
 
@@ -32,6 +30,7 @@ struct HorizonApp: App {
                 .modelContainer(container)
                 .task {
                     AppDelegate.appState = appState
+                    appState.localStoreUnavailable = isMemoryOnly
                     appState.configure(modelContainer: container)
                     await appState.onLaunch()
                     if appState.hasCompletedOnboarding, appState.isAuthenticated {

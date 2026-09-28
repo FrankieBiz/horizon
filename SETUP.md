@@ -40,7 +40,8 @@ build environment couldn't run).
    psql "$DATABASE_URL" -f supabase/migrations/001_core.sql \
      -f supabase/migrations/002_habits.sql \
      -f supabase/migrations/003_biomarkers.sql \
-     -f supabase/migrations/004_weekly.sql
+     -f supabase/migrations/004_weekly.sql \
+     -f supabase/migrations/005_weekly_goals.sql
    ```
 3. Auth → Providers → Apple: enable, using your Apple Developer Services ID
    (Supabase docs walk through the Sign in with Apple config; for an
